@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Alex+Brush&family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", "Lora", serif;
+  
+  /* Use HEX/RGB to avoid oklch() error with html2canvas */
+  --color-primary: #1e3a5f;
+  --color-primary-light: #2d5a87;
+  --color-secondary: #c9a227;
+  --color-accent: #e8b923;
+  
+  --color-surface: #0a1628;
+  --color-surface-container: #162447;
+  --color-surface-container-high: #1f4068;
+  --color-surface-container-highest: #2d3449;
+  
+  --color-text-light: #ffffff;
+  --color-success: #10b981;
+  --color-danger: #ef4444;
+
+  /* Explicitly override palettes with HEX to prevent oklch() parsing errors in html2canvas */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  --color-green-400: #4ade80;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-red-400: #f87171;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-yellow-400: #facc15;
+  --color-yellow-500: #eab308;
+  --color-yellow-600: #ca8a04;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-purple-400: #c084fc;
+  --color-purple-500: #a855f7;
+  --color-purple-600: #9333ea;
+  
+  /* Additional overrides for oklab/oklch prevention */
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-slate-200 font-sans antialiased;
+    background: linear-gradient(135deg, #0a1628 0%, #162447 50%, #1f4068 100%);
+    min-height: 100vh;
+  }
+}
+
+.glass-panel {
+  @apply bg-white/5 backdrop-blur-xl border border-white/10;
+}
+
+.card-shadow {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Card Flip Support */
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+

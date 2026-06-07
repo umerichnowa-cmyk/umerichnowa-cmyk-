@@ -1,0 +1,6 @@
+{
+  "name": "Remix: AEIDC Cartes Pro",
+  "description": "Portail premium de génération et gestion de cartes de membre officielles pour l'AEIDC.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

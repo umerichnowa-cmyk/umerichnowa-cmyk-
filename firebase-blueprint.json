@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "Member": {
+      "title": "Member",
+      "description": "Represents a member with an associated accreditation title.",
+      "type": "object",
+      "properties": {
+        "matricule": {
+          "type": "string",
+          "description": "Unique identifier for the member (e.g., AEIDC-2026-XXXX-PAYS)."
+        },
+        "firstName": {
+          "type": "string"
+        },
+        "lastName": {
+          "type": "string"
+        },
+        "fullName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        },
+        "dateOfBirth": {
+          "type": "string"
+        },
+        "nationality": {
+           "type": "string"
+        },
+        "memberType": {
+          "type": "string",
+          "enum": [
+            "ACTIF",
+            "STAGIAIRE",
+            "ETUDIANT",
+            "EXPERT",
+            "PERSONNEL"
+          ]
+        },
+        "educationLevel": { "type": "string" },
+        "specialization": { "type": "string" },
+        "functionRole": { "type": "string" },
+        "expirationDate": {
+          "type": "string",
+          "description": "Expiration date of the card (default: 31/12/2026)."
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Base64 data or URL to the member photo."
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "matricule",
+        "firstName",
+        "lastName",
+        "email",
+        "nationality",
+        "memberType",
+        "expirationDate"
+      ]
+    }
+  },
+  "firestore": {
+    "/members/{memberId}": {
+      "schema": "Member",
+      "description": "Collection of all members and their accreditation details."
+    }
+  }
+}

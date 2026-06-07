@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      // Identity check against the hardcoded admin email
+      // Note: In production, this should ideally be handled via Custom Claims or an 'admins' collection.
+      return isSignedIn() && request.auth.token.email == 'umerichnowa@gmail.com';
+    }
+
+    function isValidId(id) {
+       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Helper ---
+    function isValidMember(data) {
+      return data.keys().hasAll(['matricule', 'firstName', 'lastName', 'fullName', 'email', 'nationality', 'memberType', 'expirationDate', 'createdAt']) &&
+             data.keys().size() <= 18 &&
+             data.matricule is string && data.matricule.size() <= 64 &&
+             data.firstName is string && data.firstName.size() <= 100 &&
+             data.lastName is string && data.lastName.size() <= 100 &&
+             data.fullName is string && data.fullName.size() <= 200 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.nationality is string && data.nationality.size() <= 10 &&
+             data.memberType in ['ACTIF', 'STAGIAIRE', 'ETUDIANT', 'EXPERT', 'PERSONNEL'] &&
+             data.expirationDate == '31/12/2026' &&
+             data.createdAt == request.time;
+    }
+
+    // --- Collection: Members ---
+    match /members/{memberId} {
+      // Only Admin can list and read all members. 
+      // Users can see their own data if their email matches (Query Enforcer).
+      allow list: if isAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow get: if isAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+
+      // Anyone signed in (or unauthenticated if we want public enrollment, but let's stick to signed in for security) can enroll.
+      // Better: Let's allow unauthenticated create if it's a "subscribe" flow, but validate properly.
+      // The prompt says "utilisateurs ayant souscrit", which implies a public flow.
+      allow create: if isValidId(memberId) && isValidMember(incoming());
+
+      // Only Admin can update or delete member records.
+      allow update: if isAdmin() && isValidMember(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['memberType', 'expirationDate', 'photoUrl', 'fullName', 'functionRole', 'educationLevel', 'specialization'])
+      );
+      allow delete: if isAdmin();
+    }
+  }
+}
