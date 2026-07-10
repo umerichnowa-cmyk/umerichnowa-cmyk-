@@ -24,15 +24,34 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build CrashStat AI Trainer APK
-        run: gradle -p crashstat-android assembleDebug --stacktrace
+        id: android_build
+        continue-on-error: true
+        run: gradle -p crashstat-android assembleDebug --console=plain --stacktrace > build-output.log 2>&1
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrashStat-v3-build-log
+          path: build-output.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Rename APK
+        if: steps.android_build.outcome == 'success'
         run: cp crashstat-android/app/build/outputs/apk/debug/app-debug.apk CrashStat-AI-Trainer-v3.apk
 
       - name: Upload APK
+        if: steps.android_build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: CrashStat-AI-Trainer-v3-APK
           path: CrashStat-AI-Trainer-v3.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Report build failure
+        if: steps.android_build.outcome == 'failure'
+        run: |
+          tail -n 120 build-output.log
+          exit 1
