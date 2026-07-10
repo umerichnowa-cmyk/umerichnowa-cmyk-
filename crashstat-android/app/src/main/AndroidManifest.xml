@@ -5,13 +5,13 @@
 
     <application
         android:allowBackup="true"
-        android:label="CrashStat AI Trainer"
+        android:label="CrashStat Auto AI"
         android:resizeableActivity="true"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
         <activity
-            android:name=".ScreenTrainingActivity"
+            android:name=".AutoTrainingActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
