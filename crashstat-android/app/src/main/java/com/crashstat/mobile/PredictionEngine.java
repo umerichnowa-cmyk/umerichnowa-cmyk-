@@ -2,7 +2,9 @@ package com.crashstat.mobile;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 final class PredictionEngine {
@@ -36,25 +38,7 @@ final class PredictionEngine {
         }
     }
 
-    private static final class Candidate {
-        final double value;
-        final double weight;
-
-        Candidate(double value, double weight) {
-            this.value = value;
-            this.weight = weight;
-        }
-    }
-
-    private static final class CandidateSet {
-        final ArrayList<Candidate> candidates;
-        final int exactMatches;
-
-        CandidateSet(ArrayList<Candidate> candidates, int exactMatches) {
-            this.candidates = candidates;
-            this.exactMatches = exactMatches;
-        }
-    }
+    private static final int MAX_CONTEXT = 5;
 
     static Forecast calculate(List<Double> history, int simulationCount, int horizons) {
         if (history == null || history.size() < 6) return null;
@@ -62,28 +46,32 @@ final class PredictionEngine {
         int simulations = Math.max(1000, simulationCount);
         int steps = Math.max(1, horizons);
         double[][] paths = new double[steps][simulations];
-        long seed = seedFromHistory(history);
-        Random random = new Random(seed);
-        CandidateSet initial = buildCandidates(history);
+        Model model = new Model(history);
+        Random random = new Random(seedFromHistory(history));
+        ArrayList<Integer> initialState = new ArrayList<>();
+        int stateStart = Math.max(0, history.size() - MAX_CONTEXT);
+        for (int i = stateStart; i < history.size(); i++) {
+            initialState.add(bucket(history.get(i)));
+        }
 
-        for (int s = 0; s < simulations; s++) {
-            ArrayList<Double> simulatedHistory = new ArrayList<>(history);
-            for (int h = 0; h < steps; h++) {
-                CandidateSet set = buildCandidates(simulatedHistory);
-                double next = weightedSample(set.candidates, random);
-                paths[h][s] = next;
-                simulatedHistory.add(next);
+        for (int simulation = 0; simulation < simulations; simulation++) {
+            ArrayList<Integer> state = new ArrayList<>(initialState);
+            for (int horizon = 0; horizon < steps; horizon++) {
+                double next = model.sample(state, random);
+                paths[horizon][simulation] = next;
+                state.add(bucket(next));
+                if (state.size() > MAX_CONTEXT) state.remove(0);
             }
         }
 
         double[] estimates = new double[steps];
         double[] lows = new double[steps];
         double[] highs = new double[steps];
-        for (int h = 0; h < steps; h++) {
-            Arrays.sort(paths[h]);
-            estimates[h] = quantileSorted(paths[h], 0.50);
-            lows[h] = quantileSorted(paths[h], 0.20);
-            highs[h] = quantileSorted(paths[h], 0.80);
+        for (int horizon = 0; horizon < steps; horizon++) {
+            Arrays.sort(paths[horizon]);
+            estimates[horizon] = quantileSorted(paths[horizon], 0.50);
+            lows[horizon] = quantileSorted(paths[horizon], 0.20);
+            highs[horizon] = quantileSorted(paths[horizon], 0.80);
         }
 
         double p15 = probabilityAtLeast(paths[0], 1.50);
@@ -91,72 +79,107 @@ final class PredictionEngine {
         double p30 = probabilityAtLeast(paths[0], 3.00);
         double p50 = probabilityAtLeast(paths[0], 5.00);
 
-        int confidence = 18 + Math.min(30, history.size()) + initial.exactMatches * 5;
-        if (history.size() < 12) confidence = Math.min(confidence, 42);
-        confidence = Math.max(20, Math.min(78, confidence));
+        int matches = model.matchCount(initialState);
+        double dataScore = Math.min(28.0, Math.log10(Math.max(10, history.size())) * 11.0);
+        double matchScore = Math.min(22.0, Math.sqrt(matches) * 5.0);
+        int confidence = (int) Math.round(18.0 + dataScore + matchScore);
+        confidence = Math.max(20, Math.min(72, confidence));
 
         return new Forecast(estimates, lows, highs, p15, p20, p30, p50,
-                confidence, simulations, initial.exactMatches);
+                confidence, simulations, matches);
     }
 
-    private static CandidateSet buildCandidates(List<Double> history) {
-        int n = history.size();
-        ArrayList<Candidate> out = new ArrayList<>();
-        if (n == 0) return new CandidateSet(out, 0);
+    private static final class Model {
+        private final Map<String, ArrayList<Double>>[] contexts;
+        private final ArrayList<Double> global = new ArrayList<>();
+        private final ArrayList<Double> recent = new ArrayList<>();
 
-        int patternLength = Math.min(3, n - 1);
-        int exactMatches = 0;
+        @SuppressWarnings("unchecked")
+        Model(List<Double> history) {
+            contexts = new Map[MAX_CONTEXT + 1];
+            for (int k = 1; k <= MAX_CONTEXT; k++) contexts[k] = new HashMap<>();
 
-        if (patternLength > 0) {
-            for (int i = patternLength; i < n; i++) {
-                int distance = 0;
-                for (int j = 0; j < patternLength; j++) {
-                    int historicalBucket = bucket(history.get(i - patternLength + j));
-                    int currentBucket = bucket(history.get(n - patternLength + j));
-                    distance += Math.abs(historicalBucket - currentBucket);
+            global.addAll(history);
+            int recentStart = Math.max(0, history.size() - 150);
+            recent.addAll(history.subList(recentStart, history.size()));
+
+            for (int nextIndex = 1; nextIndex < history.size(); nextIndex++) {
+                int maxK = Math.min(MAX_CONTEXT, nextIndex);
+                for (int k = 1; k <= maxK; k++) {
+                    String key = keyFromHistory(history, nextIndex - k, nextIndex);
+                    contexts[k]
+                            .computeIfAbsent(key, ignored -> new ArrayList<>())
+                            .add(history.get(nextIndex));
                 }
-
-                if (distance == 0) exactMatches++;
-                double similarity = Math.exp(-0.78 * distance);
-                double patternBonus = distance == 0 ? 4.2 : (distance <= 2 ? 2.0 : 1.0);
-                double recency = 0.62 + 0.38 * (i / (double) Math.max(1, n - 1));
-                double weight = similarity * patternBonus * recency;
-                if (weight >= 0.015) out.add(new Candidate(history.get(i), weight));
             }
         }
 
-        int recentStart = Math.max(0, n - 12);
-        for (int i = recentStart; i < n; i++) {
-            double recency = 0.22 + 0.22 * ((i - recentStart + 1) / (double) Math.max(1, n - recentStart));
-            out.add(new Candidate(history.get(i), recency));
+        double sample(List<Integer> state, Random random) {
+            ArrayList<Double> conditional = null;
+            for (int k = Math.min(MAX_CONTEXT, state.size()); k >= 1; k--) {
+                String key = keyFromState(state, state.size() - k, state.size());
+                ArrayList<Double> found = contexts[k].get(key);
+                if (found != null && found.size() >= 2) {
+                    conditional = found;
+                    break;
+                }
+            }
+
+            double selector = random.nextDouble();
+            double sampled;
+            if (conditional != null && selector < 0.72) {
+                sampled = conditional.get(random.nextInt(conditional.size()));
+            } else if (!recent.isEmpty() && selector < 0.93) {
+                double biased = 1.0 - Math.pow(random.nextDouble(), 2.2);
+                int index = Math.min(recent.size() - 1,
+                        (int) Math.floor(biased * recent.size()));
+                sampled = recent.get(index);
+            } else {
+                sampled = global.get(random.nextInt(global.size()));
+            }
+
+            double jitter = Math.exp(random.nextGaussian() * 0.018);
+            return Math.max(1.0, sampled * jitter);
         }
 
-        for (double value : history) out.add(new Candidate(value, 0.07));
+        int matchCount(List<Integer> state) {
+            for (int k = Math.min(MAX_CONTEXT, state.size()); k >= 1; k--) {
+                String key = keyFromState(state, state.size() - k, state.size());
+                ArrayList<Double> found = contexts[k].get(key);
+                if (found != null && !found.isEmpty()) return found.size();
+            }
+            return 0;
+        }
+    }
 
-        return new CandidateSet(out, exactMatches);
+    private static String keyFromHistory(List<Double> history, int start, int end) {
+        StringBuilder key = new StringBuilder();
+        for (int i = start; i < end; i++) {
+            if (key.length() > 0) key.append('-');
+            key.append(bucket(history.get(i)));
+        }
+        return key.toString();
+    }
+
+    private static String keyFromState(List<Integer> state, int start, int end) {
+        StringBuilder key = new StringBuilder();
+        for (int i = start; i < end; i++) {
+            if (key.length() > 0) key.append('-');
+            key.append(state.get(i));
+        }
+        return key.toString();
     }
 
     private static int bucket(double value) {
-        if (value < 1.20) return 0;
-        if (value < 1.50) return 1;
-        if (value < 2.00) return 2;
-        if (value < 3.00) return 3;
-        if (value < 5.00) return 4;
-        if (value < 10.00) return 5;
-        return 6;
-    }
-
-    private static double weightedSample(List<Candidate> candidates, Random random) {
-        if (candidates.isEmpty()) return 1.0;
-        double total = 0.0;
-        for (Candidate candidate : candidates) total += candidate.weight;
-        double target = random.nextDouble() * total;
-        double cumulative = 0.0;
-        for (Candidate candidate : candidates) {
-            cumulative += candidate.weight;
-            if (cumulative >= target) return candidate.value;
-        }
-        return candidates.get(candidates.size() - 1).value;
+        if (value < 1.10) return 0;
+        if (value < 1.20) return 1;
+        if (value < 1.50) return 2;
+        if (value < 2.00) return 3;
+        if (value < 3.00) return 4;
+        if (value < 5.00) return 5;
+        if (value < 10.00) return 6;
+        if (value < 20.00) return 7;
+        return 8;
     }
 
     private static double probabilityAtLeast(double[] values, double threshold) {
