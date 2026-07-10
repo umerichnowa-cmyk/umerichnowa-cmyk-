@@ -58,12 +58,23 @@ final class RoundStore {
                 .putLong(KEY_LAST_AUTO_TIME, timestamp)
                 .apply();
 
-        String row = timestamp + "," + value + ",screen_ocr\n";
+        appendCsv(context,timestamp,value,"screen_ocr");
+        return count;
+    }
+
+    static synchronized void appendManual(Context context, double value, long timestamp) {
+        ArrayList<Double> values = load(context);
+        values.add(value);
+        save(context, values);
+        appendCsv(context,timestamp,value,"manual");
+    }
+
+    private static void appendCsv(Context context,long timestamp,double value,String source) {
+        String row = timestamp + "," + value + "," + source + "\n";
         try (FileOutputStream output = context.openFileOutput(CSV_FILE, Context.MODE_APPEND)) {
             output.write(row.getBytes(StandardCharsets.UTF_8));
         } catch (Exception ignored) {
         }
-        return count;
     }
 
     static int automaticCount(Context context) {
