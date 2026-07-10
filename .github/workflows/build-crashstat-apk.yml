@@ -23,16 +23,16 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Build debug APK
+      - name: Build CrashStat AI Trainer APK
         run: gradle -p crashstat-android assembleDebug --stacktrace
 
       - name: Rename APK
-        run: cp crashstat-android/app/build/outputs/apk/debug/app-debug.apk CrashStat-Mobile.apk
+        run: cp crashstat-android/app/build/outputs/apk/debug/app-debug.apk CrashStat-AI-Trainer-v3.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: CrashStat-Mobile-APK
-          path: CrashStat-Mobile.apk
+          name: CrashStat-AI-Trainer-v3-APK
+          path: CrashStat-AI-Trainer-v3.apk
           if-no-files-found: error
           retention-days: 30
